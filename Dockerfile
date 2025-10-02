@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ---------- 1) Build the frontend from ./web ----------
 FROM node:20-bookworm AS webbuild
 
@@ -39,6 +40,47 @@ COPY ${SERVER_DIR}/src ./src
 WORKDIR /srv
 RUN mkdir -p server/public
 COPY --from=webbuild /app/web/${FRONTEND_BUILD_DIR} ./server/public
+=======
+# -------- Configurable paths (override via --build-arg) --------
+ARG FRONTEND_DIR=client          # set to "." if your frontend is at repo root
+ARG FRONTEND_BUILD_DIR=dist      # "dist" for Vite, "build" for CRA
+ARG SERVER_DIR=server
+
+# ---------- 1) Build the frontend ----------
+FROM node:20-bookworm AS webbuild
+# Re-declare args in this stage
+ARG FRONTEND_DIR
+ARG FRONTEND_BUILD_DIR
+
+WORKDIR /app
+
+# Copy only frontend manifests for caching
+# If the path doesn't exist, COPY will fail — so set FRONTEND_DIR correctly!
+COPY ${FRONTEND_DIR}/package.json ${FRONTEND_DIR}/package-lock.json* ${FRONTEND_DIR}/pnpm-lock.yaml* ${FRONTEND_DIR}/yarn.lock* ${FRONTEND_DIR}/.npmrc* ./client/
+RUN cd client && npm ci
+
+# Copy the rest of the frontend source and build
+COPY ${FRONTEND_DIR} ./client
+WORKDIR /app/client
+RUN npm run build   # produces /app/client/${FRONTEND_BUILD_DIR}
+
+# ---------- 2) Runtime: Node/Express serving API + static ----------
+FROM node:20-bookworm AS runtime
+ARG SERVER_DIR
+ARG FRONTEND_BUILD_DIR
+
+WORKDIR /srv
+
+# Install server deps
+COPY ${SERVER_DIR}/package.json ${SERVER_DIR}/package-lock.json* ./server/
+RUN cd server && npm ci --omit=dev
+
+# Copy built frontend into server/public
+COPY --from=webbuild /app/client/${FRONTEND_BUILD_DIR} ./server/public
+
+# Copy server source
+COPY ${SERVER_DIR}/src ./server/src
+>>>>>>> 7396a8d (wire frontend entry + docker/ci files)
 
 ENV NODE_ENV=production
 ENV PORT=4000

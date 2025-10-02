@@ -1,10 +1,11 @@
 {
-  "name": "attackpaths-server",
+  "name": "ctem-server",
   "private": true,
   "type": "module",
   "version": "3.9.0",
   "scripts": {
-    "dev": "node src/index.js"
+    "dev": "node src/index.js",
+    "start": "node src/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
