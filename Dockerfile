@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # ---------- 1) Build the frontend from ./web ----------
 FROM node:20-bookworm AS webbuild
 
@@ -80,7 +79,6 @@ COPY --from=webbuild /app/client/${FRONTEND_BUILD_DIR} ./server/public
 
 # Copy server source
 COPY ${SERVER_DIR}/src ./server/src
->>>>>>> 7396a8d (wire frontend entry + docker/ci files)
 
 ENV NODE_ENV=production
 ENV PORT=4000
