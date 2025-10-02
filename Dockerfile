@@ -1,19 +1,27 @@
-# ---------- 1) Build the frontend (web/) ----------
+# ---------- 1) Build the frontend from ./web ----------
 FROM node:20-bookworm AS webbuild
 
-ARG FRONTEND_DIR=web
-ARG FRONTEND_BUILD_DIR=dist
+ARG FRONTEND_DIR=web          
+ARG FRONTEND_BUILD_DIR=dist   
 
-WORKDIR /app
-
-# Copy only the frontend manifest first for better caching
-COPY ${FRONTEND_DIR}/package.json ./web/package.json
-RUN cd web && npm ci
-
-# Copy the rest of the frontend source and build
-COPY ${FRONTEND_DIR}/ ./web/
+# put us inside /app/web
 WORKDIR /app/web
-RUN npm run build
+
+# copy the entire frontend (simple & robust; fine for most apps)
+COPY ${FRONTEND_DIR}/ ./
+
+# install with the right tool (yarn/pnpm/npm) and build
+RUN corepack enable && \
+    if [ -f yarn.lock ]; then \
+      echo "Using yarn"; yarn install --frozen-lockfile; \
+    elif [ -f pnpm-lock.yaml ]; then \
+      echo "Using pnpm"; pnpm install --frozen-lockfile; \
+    elif [ -f package-lock.json ]; then \
+      echo "Using npm ci"; npm ci; \
+    else \
+      echo "No lockfile found → npm install"; npm install; \
+    fi && \
+    npm run build
 
 # ---------- 2) Runtime: Node/Express serving API + static ----------
 FROM node:20-bookworm AS runtime
@@ -21,16 +29,22 @@ FROM node:20-bookworm AS runtime
 ARG SERVER_DIR=server
 ARG FRONTEND_BUILD_DIR=dist
 
+# app lives at /srv/server
+WORKDIR /srv/server
+
+# copy server (package.json + src)
+COPY ${SERVER_DIR}/ ./
+
+# install server deps (prefer lockfile if present)
+RUN if [ -f package-lock.json ]; then \
+      npm ci --omit=dev; \
+    else \
+      npm install --omit=dev; \
+    fi
+
+# static assets for the UI
 WORKDIR /srv
-
-# Install server deps
-COPY ${SERVER_DIR}/package.json ./server/package.json
-RUN cd server && npm ci --omit=dev
-
-# Copy server source
-COPY ${SERVER_DIR}/src ./server/src
-
-# Copy built frontend into server/public
+RUN mkdir -p server/public
 COPY --from=webbuild /app/web/${FRONTEND_BUILD_DIR} ./server/public
 
 ENV NODE_ENV=production
