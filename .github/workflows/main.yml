@@ -1,0 +1,66 @@
+name: Build & Publish Docker Image
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+env:
+  # Docker Hub target (your Hub repo)
+  IMAGE_NAME_DH: checkmeifyoucan/ctem
+  # GitHub Container Registry target (your GitHub user)
+  IMAGE_NAME_GHCR: ghcr.io/tal-hash1/ctem
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # needed for GHCR
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # Login to Docker Hub with your repo secrets
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Login to GHCR with the built-in token
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: vars
+        run: |
+          SHA_TAG=${GITHUB_SHA::7}
+          echo "sha=${SHA_TAG}" >> $GITHUB_OUTPUT
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "ver=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build & push (Docker Hub + GHCR)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME_DH }}:latest
+            ${{ env.IMAGE_NAME_DH }}:${{ steps.vars.outputs.sha }}
+            ${{ env.IMAGE_NAME_GHCR }}:latest
+            ${{ env.IMAGE_NAME_GHCR }}:${{ steps.vars.outputs.sha }}
+            ${{ steps.vars.outputs.ver && format('{0}:{1}', env.IMAGE_NAME_DH, steps.vars.outputs.ver) || '' }}
+            ${{ steps.vars.outputs.ver && format('{0}:{1}', env.IMAGE_NAME_GHCR, steps.vars.outputs.ver) || '' }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
