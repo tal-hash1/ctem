@@ -1,0 +1,23 @@
+{
+  "name": "attackpaths-web",
+  "version": "4.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite"
+  },
+  "dependencies": {
+    "marked": "^12.0.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-force-graph": "^1.44.4",
+    "react-force-graph-2d": "^1.23.7",
+    "react-force-graph-3d": "^1.29.0",
+    "react-window": "^1.8.10",
+    "three": "^0.160.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0"
+  }
+}
