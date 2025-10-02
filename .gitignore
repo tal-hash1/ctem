@@ -1,0 +1,17 @@
+# deps
+node_modules/
+**/node_modules/
+
+# builds
+dist/
+**/dist/
+web/dist/
+
+# env
+.env
+.env*
+
+# logs & os cruft
+npm-debug.log*
+yarn-error.log*
+.DS_Store
