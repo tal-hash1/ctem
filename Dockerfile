@@ -6,7 +6,7 @@ ARG FRONTEND_BUILD_DIR=dist
 
 WORKDIR /app/web
 
-# Copy only the manifest first and install deps
+# Copy manifests and install deps
 COPY ${FRONTEND_DIR}/package.json ./
 RUN npm install
 
