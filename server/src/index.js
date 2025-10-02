@@ -5,7 +5,6 @@ import cors from 'cors';
 import morgan from 'morgan';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 import { runAttackPaths, getAdaptCache } from './h3.js';
 
 // __dirname for ES modules
@@ -23,7 +22,15 @@ app.options('*', cors());
 // ---------------------- Health & Diagnostics ----------------------
 app.get('/', (req, res) => res.json({ ok: true }));
 app.get('/health', (req, res) => res.json({ ok: true }));
+app.get('/api/hello', (_req, res) => res.json({ message: 'CTEM up' }));
+const publicDir = path.join(__dirname, '..', 'public');
+app.use(express.static(publicDir));
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
+});
 
+const port = process.env.PORT || 4000;
+app.listen(port, () => console.log(`CTEM server listening on ${port}`));
 app.get('/diag', async (req, res) => {
   try {
     const cacheState = [];
