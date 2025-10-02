@@ -1,0 +1,14 @@
+# Standard uninstall (stop and remove .ctem folder)
+.\uninstall.ps1
+
+# Non-interactive (no prompt)
+.\uninstall.ps1 -Force
+
+# Also remove images
+.\uninstall.ps1 -PurgeImages
+
+# Also remove volumes created by the stack
+.\uninstall.ps1 -PurgeVolumes
+
+# Do everything without prompting
+.\uninstall.ps1 -Force -PurgeImages -PurgeVolumes
