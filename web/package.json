@@ -1,5 +1,5 @@
 {
-  "name": "attackpaths-web",
+  "name": "ctem-server",
   "version": "4.1.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,8 @@
     "react-force-graph-2d": "^1.23.7",
     "react-force-graph-3d": "^1.29.0",
     "react-window": "^1.8.10",
-    "three": "^0.160.1"
+    "three": "^0.160.1",
+     "express": "^4.19.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
