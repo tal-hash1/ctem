@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
 
 env:
-  # Docker Hub target (your Hub repo):
+  # Docker Hub target (your Hub repo)
   IMAGE_NAME_DH: checkmeifyoucan/ctem
-  # GHCR target under your GitHub user:
+  # GHCR target (your GitHub username)
   IMAGE_NAME_GHCR: ghcr.io/tal-hash1/ctem
 
 jobs:
@@ -17,20 +17,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # needed for GHCR
+      packages: write   # needed for GHCR push
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Login to Docker Hub using repo secrets (add them in step 2)
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ---- Logins ----
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Login to GHCR using the built-in token
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -38,6 +42,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ---- Compute version tags ----
       - name: Compute tags
         id: vars
         run: |
@@ -47,6 +52,7 @@ jobs:
             echo "ver=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
           fi
 
+      # ---- Build & Push ----
       - name: Build & push (Docker Hub + GHCR)
         uses: docker/build-push-action@v6
         with:
@@ -54,6 +60,11 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          # Your repo layout: frontend in web/ → Vite outputs dist/
+          build-args: |
+            FRONTEND_DIR=web
+            FRONTEND_BUILD_DIR=dist
+            SERVER_DIR=server
           tags: |
             ${{ env.IMAGE_NAME_DH }}:latest
             ${{ env.IMAGE_NAME_DH }}:${{ steps.vars.outputs.sha }}
@@ -64,4 +75,3 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-
