@@ -1,47 +1,34 @@
-# ---------- 1) Build the React app ----------
+ARG FRONTEND_DIR=web           # your frontend lives in ./web
+ARG FRONTEND_BUILD_DIR=dist    # Vite => dist ; CRA => build
+ARG SERVER_DIR=server
+
 FROM node:20-bookworm AS webbuild
+ARG FRONTEND_DIR
+ARG FRONTEND_BUILD_DIR
 WORKDIR /app
 
-# Copy only manifests first for better caching
-COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
-# If you use pnpm or yarn, switch the install command accordingly
-RUN npm ci
+COPY ${FRONTEND_DIR}/package.json ${FRONTEND_DIR}/package-lock.json* ${FRONTEND_DIR}/pnpm-lock.yaml* ${FRONTEND_DIR}/yarn.lock* ${FRONTEND_DIR}/.npmrc* ./web/
+RUN cd web && npm ci
 
-# Copy app source
-COPY . .
+COPY ${FRONTEND_DIR} ./web
+WORKDIR /app/web
+RUN npm run build   # produces /app/web/${FRONTEND_BUILD_DIR}
 
-# If your React app lives in a subfolder (e.g., ./client), change to:
-# WORKDIR /app/client
-# RUN npm ci && npm run build
-# and later copy from /app/client/dist (or build) instead of /app/dist
-
-# Build frontend (outputs to /app/dist if using Vite; /app/build for CRA)
-# Change this to your actual build script
-RUN npm run build
-
-# ---------- 2) Runtime image (Node + Express serving API + static) ----------
 FROM node:20-bookworm AS runtime
+ARG SERVER_DIR
+ARG FRONTEND_BUILD_DIR
 WORKDIR /srv
 
-# Copy server code
-# Make sure these files exist in your repo:
-#   server/package.json
-#   server/src/index.js  (Express app)
-COPY server/package.json server/package-lock.json* ./server/
+COPY ${SERVER_DIR}/package.json ${SERVER_DIR}/package-lock.json* ./server/
 RUN cd server && npm ci --omit=dev
 
-# Copy frontend build artifacts into server's public dir
-# Adjust the source path if your build output is at /app/build
-COPY --from=webbuild /app/dist ./server/public
+COPY --from=webbuild /app/web/${FRONTEND_BUILD_DIR} ./server/public
 
 # Copy server source
-COPY server/src ./server/src
+COPY ${SERVER_DIR}/src ./server/src
 
-# Env + port
 ENV NODE_ENV=production
 ENV PORT=4000
 EXPOSE 4000
 
-# Start server
 CMD ["node", "server/src/index.js"]
-
