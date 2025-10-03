@@ -50,7 +50,7 @@ const OP_HISTORY_KEY_V2 = 'ctem.opHistory.v2' // array of {id, name, savedAt}
 const OP_HISTORY_MAX = 50
 
 function useOpHistory() {
-  const [history, setHistory] = useState([]) // [{id,name,savedAt}]
+  const [history, setHistory] = useState([])
 
   // migrate from v1 (array of strings) if present
   useEffect(() => {
@@ -293,7 +293,7 @@ export default function App(){
     setLoading(true); setLoadError(null)
     try {
       const p = await getAttackPaths(opId); setPage(p)
-      const t = await getTopCVEs(opId); setCves(t.cves || t.items || []) // support both shapes
+      const t = await getTopCVEs(opId); setCves(t.cves || t.items || [])
       setSelected(null)
       saveOp(opId, opLabel) // save current OP+label
     } catch(e){
@@ -406,50 +406,48 @@ export default function App(){
       <div className="card">
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div><b>Vulnerabilities (CVE)</b></div>
-          <div className="muted">Select CVEs, to simulation</div>
+          <div className="muted">Select CVEs to simulate</div>
         </div>
 
-   {/* CVE chips (auto-run on click) */}
-<div>
-  {(() => {
-    const MAX = 10;
-    const list = Array.isArray(cves)
-      ? cves.map(c => c.cve ? { weakness_id: c.cve, freq: c.count } : c)
-      : [];
-    const arr = showAllCVEs ? list : list.slice(0, MAX);
-    return arr.map(c => {
-      const id = c.weakness_id || c.cve;
-      const active = selectedCVEs.includes(id);
-      return (
-        <button
-          key={id}
-          className="chip"
-          style={{ borderColor: active ? '#93c5fd' : '#1f2937', cursor: 'pointer' }}
-          onClick={() => {
-            const next = active
-              ? selectedCVEs.filter(x => x !== id)
-              : [...selectedCVEs, id];
-            setSelectedCVEs(next);
-            runSim(next);  // ← auto-run on each click
-          }}
-        >
-          {id} {c.freq ? `· ${c.freq} paths` : ''}
-        </button>
-      );
-    });
-  })()}
-</div>
+        {/* CVE chips (AUTO-RUN on click) */}
+        <div>
+          {(() => {
+            const MAX = 10;
+            const list = Array.isArray(cves)
+              ? cves.map(c => c.cve ? { weakness_id: c.cve, freq: c.count } : c)
+              : [];
+            const arr = showAllCVEs ? list : list.slice(0, MAX);
+            return arr.map(c => {
+              const id = c.weakness_id || c.cve
+              const active = selectedCVEs.includes(id);
+              return (
+                <button
+                  key={id}
+                  className="chip"
+                  style={{ borderColor: active ? '#93c5fd' : '#1f2937', cursor: 'pointer' }}
+                  onClick={() => {
+                    const next = active
+                      ? selectedCVEs.filter(x => x !== id)
+                      : [...selectedCVEs, id];
+                    setSelectedCVEs(next);
+                    runSim(next); // ← auto-run on each click
+                  }}
+                >
+                  {id} {c.freq ? `· ${c.freq} paths` : ''}
+                </button>
+              );
+            });
+          })()}
+        </div>
 
-
-    {/* Actions under chips (no manual run button) */}
-<div style={{ marginTop: 6, display:'flex', gap:8, flexWrap:'wrap' }}>
-  {cves.length > 10 && (
-    <button className="btn" onClick={() => setShowAllCVEs(!showAllCVEs)}>
-      {showAllCVEs ? 'Show fewer CVEs' : `Show more (${cves.length - 10})`}
-    </button>
-  )}
-</div>
-
+        {/* Show more/less only (no manual button) */}
+        <div style={{ marginTop: 6, display:'flex', gap:8, flexWrap:'wrap' }}>
+          {cves.length > 10 && (
+            <button className="btn" onClick={() => setShowAllCVEs(!showAllCVEs)}>
+              {showAllCVEs ? 'Show fewer CVEs' : `Show more (${cves.length - 10})`}
+            </button>
+          )}
+        </div>
 
         {/* Simulation result + Reset + Explain Calculation */}
         <div className="row" style={{ gap: 12, marginTop: 8, alignItems:'center' }}>
