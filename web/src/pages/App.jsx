@@ -409,33 +409,37 @@ export default function App(){
           <div className="muted">Select CVEs, then run simulation</div>
         </div>
 
-        {/* CVE chips (manual run) */}
-        <div>
-          {(() => {
-            const MAX = 10;
-            const list = Array.isArray(cves)
-              ? cves.map(c => c.cve ? { weakness_id: c.cve, freq: c.count } : c)
-              : [];
-            const arr = showAllCVEs ? list : list.slice(0, MAX);
-            return arr.map(c => {
-              const id = c.weakness_id || c.cve
-              const active = selectedCVEs.includes(id);
-              return (
-                <button
-                  key={id}
-                  className="chip"
-                  style={{ borderColor: active ? '#93c5fd' : '#1f2937', cursor: 'pointer' }}
-                  onClick={() => {
-                    const next = active ? selectedCVEs.filter(x => x !== id) : [...selectedCVEs, id];
-                    setSelectedCVEs(next);
-                  }}
-                >
-                  {id} {c.freq ? `· ${c.freq} paths` : ''}
-                </button>
-              );
-            });
-          })()}
-        </div>
+   {/* CVE chips (auto-run on click) */}
+<div>
+  {(() => {
+    const MAX = 10;
+    const list = Array.isArray(cves)
+      ? cves.map(c => c.cve ? { weakness_id: c.cve, freq: c.count } : c)
+      : [];
+    const arr = showAllCVEs ? list : list.slice(0, MAX);
+    return arr.map(c => {
+      const id = c.weakness_id || c.cve;
+      const active = selectedCVEs.includes(id);
+      return (
+        <button
+          key={id}
+          className="chip"
+          style={{ borderColor: active ? '#93c5fd' : '#1f2937', cursor: 'pointer' }}
+          onClick={() => {
+            const next = active
+              ? selectedCVEs.filter(x => x !== id)
+              : [...selectedCVEs, id];
+            setSelectedCVEs(next);
+            runSim(next);  // ← auto-run on each click
+          }}
+        >
+          {id} {c.freq ? `· ${c.freq} paths` : ''}
+        </button>
+      );
+    });
+  })()}
+</div>
+
 
         {/* Actions under chips */}
         <div style={{ marginTop: 6, display:'flex', gap:8, flexWrap:'wrap' }}>
