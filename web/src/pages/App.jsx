@@ -406,7 +406,7 @@ export default function App(){
       <div className="card">
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div><b>Vulnerabilities (CVE)</b></div>
-          <div className="muted">Select CVEs, then run simulation</div>
+          <div className="muted">Select CVEs, to simulation</div>
         </div>
 
    {/* CVE chips (auto-run on click) */}
@@ -441,17 +441,15 @@ export default function App(){
 </div>
 
 
-        {/* Actions under chips */}
-        <div style={{ marginTop: 6, display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button className="btn" onClick={() => runSim(selectedCVEs)} disabled={selectedCVEs.length===0}>
-            Run Simulation
-          </button>
-          {cves.length > 10 && (
-            <button className="btn" onClick={() => setShowAllCVEs(!showAllCVEs)}>
-              {showAllCVEs ? 'Show fewer CVEs' : `Show more (${cves.length - 10})`}
-            </button>
-          )}
-        </div>
+    {/* Actions under chips (no manual run button) */}
+<div style={{ marginTop: 6, display:'flex', gap:8, flexWrap:'wrap' }}>
+  {cves.length > 10 && (
+    <button className="btn" onClick={() => setShowAllCVEs(!showAllCVEs)}>
+      {showAllCVEs ? 'Show fewer CVEs' : `Show more (${cves.length - 10})`}
+    </button>
+  )}
+</div>
+
 
         {/* Simulation result + Reset + Explain Calculation */}
         <div className="row" style={{ gap: 12, marginTop: 8, alignItems:'center' }}>
