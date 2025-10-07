@@ -5,7 +5,36 @@ import * as THREE from 'three';
 import ThreatActorPopover from './ThreatActorPopover';
 import { getThreatActors } from '../lib/api';
 
-const DEFAULT_OP_ID = '8fccfaf0-c8cd-4688-a8cb-b1c209f1166d';
+const DEFAULT_BG = '#0b1220';
+
+// Handy: read op_id from URL if present (?op_id=...)
+function getOpIdFromUrl() {
+  try {
+    const u = new URL(window.location.href);
+    return u.searchParams.get('op_id') || null;
+  } catch { return null; }
+}
+
+// Given a node, extract hostId + opId with solid fallbacks.
+function extractIds(node, fallbackOpId) {
+  const hostId =
+    node?.host_id ??
+    node?.host?.id ??
+    node?.id ??
+    null;
+
+  const nodeOpId =
+    node?.op_id ??
+    node?.opId ??
+    null;
+
+  const urlOpId = getOpIdFromUrl();
+
+  // Priority: node value > URL > prop fallback
+  const opId = nodeOpId || urlOpId || fallbackOpId || null;
+
+  return { hostId, opId };
+}
 
 function makeNodeMesh(n) {
   const group = new THREE.Group();
@@ -24,11 +53,22 @@ function makeNodeMesh(n) {
   return group;
 }
 
-export default function AttackPath3D({ nodes = [], links = [], opId = DEFAULT_OP_ID, backgroundColor = '#0b1220' }) {
+export default function AttackPath3D({
+  nodes = [],
+  links = [],
+  // You can still pass opId as a prop; it’s used as a fallback
+  opId: propOpId = null,
+  backgroundColor = DEFAULT_BG
+}) {
   const fgRef = useRef();
   const containerRef = useRef();
   const cameraRef = useRef();
-  const [popover, setPopover] = useState(null); // { nodeId, actors, screen:{x,y} }
+
+  // { nodeKey, actors, screen:{x,y}, loading }
+  const [popover, setPopover] = useState(null);
+
+  // simple in-memory cache to avoid refetching same (opId, hostId)
+  const cacheRef = useRef(new Map()); // key: `${opId}::${hostId}` -> {actors, ts}
 
   const data = useMemo(() => ({ nodes, links }), [nodes, links]);
 
@@ -47,39 +87,75 @@ export default function AttackPath3D({ nodes = [], links = [], opId = DEFAULT_OP
   useEffect(() => {
     let raf;
     const tick = () => {
-      if (popover?.nodeId && fgRef.current) {
+      if (popover?.nodeKey && fgRef.current) {
         const scene = fgRef.current.graph2Scene?.();
-        const obj = scene?.getObjectByName?.(`node-${popover.nodeId}`);
+        const obj = scene?.getObjectByName?.(`node-${popover.nodeKey}`);
         if (obj) {
           const screen = worldToScreen(obj);
-          if (screen) setPopover(p => (p && p.nodeId === popover.nodeId ? { ...p, screen } : p));
+          if (screen) setPopover(p => (p && p.nodeKey === popover.nodeKey ? { ...p, screen } : p));
         }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [popover?.nodeId]);
+  }, [popover?.nodeKey]);
 
   const handleNodeClick = async (node, evt) => {
     evt?.stopPropagation?.();
-    try {
-      const nodeId = node?.id ?? node;
-      if (!nodeId || !opId) return;
 
-      const scene = fgRef.current?.graph2Scene?.();
-      const obj = scene?.getObjectByName?.(`node-${nodeId}`);
-      const screen = obj ? worldToScreen(obj) : null;
+    // Get ids from the node (preferred), URL, or prop fallback.
+    const { hostId, opId } = extractIds(node, propOpId);
 
-      const { ok, actors } = await getThreatActors(opId, nodeId);
+    // Minimal validation
+    const nodeKey = node?.id ?? hostId ?? 'unknown';
+    if (!hostId) {
       setPopover({
-        nodeId,
-        actors: ok && actors?.length ? actors : [{ actor: 'No Threat Actors found' }],
-        screen
+        nodeKey,
+        actors: [{ actor: 'Missing host_id on node' }],
+        screen: null,
+        loading: false
       });
+      return;
+    }
+    if (!opId) {
+      setPopover({
+        nodeKey,
+        actors: [{ actor: 'Missing op_id (node/op_id or URL ?op_id=... or prop)' }],
+        screen: null,
+        loading: false
+      });
+      return;
+    }
+
+    // Locate the mesh for anchoring
+    const scene = fgRef.current?.graph2Scene?.();
+    const obj = scene?.getObjectByName?.(`node-${nodeKey}`);
+    const screen = obj ? worldToScreen(obj) : null;
+
+    const cacheKey = `${opId}::${hostId}`;
+    const cached = cacheRef.current.get(cacheKey);
+    if (cached) {
+      setPopover({ nodeKey, actors: cached.actors, screen, loading: false });
+      return;
+    }
+
+    // Show loading state
+    setPopover({ nodeKey, actors: [], screen, loading: true });
+
+    try {
+      const { ok, actors } = await getThreatActors(opId, hostId);
+      const finalActors = ok && actors?.length ? actors : [{ actor: 'No Threat Actors found' }];
+      cacheRef.current.set(cacheKey, { actors: finalActors, ts: Date.now() });
+      setPopover({ nodeKey, actors: finalActors, screen, loading: false });
     } catch (e) {
       console.error(e);
-      setPopover({ nodeId: node?.id, actors: [{ actor: 'Error loading Threat Actors' }], screen: null });
+      setPopover({
+        nodeKey,
+        actors: [{ actor: 'Error loading Threat Actors' }],
+        screen,
+        loading: false
+      });
     }
   };
 
@@ -100,6 +176,7 @@ export default function AttackPath3D({ nodes = [], links = [], opId = DEFAULT_OP
         backgroundColor={backgroundColor}
         onNodeClick={handleNodeClick}
         onEngineStop={() => {
+          // capture camera once the engine settles
           if (fgRef.current?.camera) {
             cameraRef.current = fgRef.current.camera();
           } else if (fgRef.current?.renderer) {
@@ -107,10 +184,16 @@ export default function AttackPath3D({ nodes = [], links = [], opId = DEFAULT_OP
           }
         }}
       />
-      {popover?.actors && (
+
+      {/* Popover */}
+      {popover && (
         <ThreatActorPopover
           screenPos={popover.screen}
-          actors={popover.actors}
+          actors={
+            popover.loading
+              ? [{ actor: 'Loading…' }]
+              : popover.actors
+          }
           onClose={() => setPopover(null)}
         />
       )}
