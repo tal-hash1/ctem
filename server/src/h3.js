@@ -19,9 +19,12 @@ async function gql(query, variables) {
   return data.data;
 }
 
-// Adjust field names if your tenant differs.
+/**
+ * Tripwires page — adjust field names if your tenant differs.
+ * We’ll use this for both "hosts for op" and "threat actors for host".
+ */
 const Q_TRIPWIRES_PAGE = `
-  query TripwiresByHost($input: TripwiresPageInput!, $page_input: PageInput) {
+  query TripwiresByFilter($input: TripwiresPageInput!, $page_input: PageInput) {
     tripwires_page(input: $input, page_input: $page_input) {
       items {
         id
@@ -39,11 +42,33 @@ const Q_TRIPWIRES_PAGE = `
   }
 `;
 
-/** Named export (what index.js imports) */
+/**
+ * Pull a unique list of hosts that have tripwires in the operation.
+ * Returns: Array<{ id, hostname?, ip? }>
+ */
+export async function getHostsForOperation(op_id) {
+  const data = await gql(Q_TRIPWIRES_PAGE, {
+    input: { op_id },                 // if your schema needs a different key, adjust here
+    page_input: { page: 1, per_page: 200 }
+  });
+  const items = data?.tripwires_page?.items ?? [];
+  const map = new Map();
+  for (const t of items) {
+    const h = t.host || {};
+    if (!h?.id) continue;
+    if (!map.has(h.id)) map.set(h.id, { id: h.id, hostname: h.hostname || null, ip: h.ip || null });
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * Return compact Threat Actor info grouped by actor for a given op_id + host_id.
+ * Output: Array<{ actor, created_at, severity, status, technique?, rule_name?, description? }>
+ */
 export async function getTripwiresByHost({ op_id, host_id }) {
   const data = await gql(Q_TRIPWIRES_PAGE, {
-    input: { op_id, host_id },
-    page_input: { page: 1, per_page: 50 }
+    input: { op_id, host_id },        // if your schema expects host_uuid or host_ids, tweak here
+    page_input: { page: 1, per_page: 200 }
   });
 
   const items = data?.tripwires_page?.items ?? [];
