@@ -2,10 +2,19 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { getHostsForOperation, getTripwiresByHost } from './h3.js';
 
-const PORT = Number(process.env.PORT || 8080);   // use 8080 since you tested there
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const PORT = Number(process.env.PORT || 4000);
 const HOST = process.env.HOST || '0.0.0.0';
+
+// Where your built frontend lives (adjust if different)
+const STATIC_DIR = process.env.STATIC_DIR || path.resolve(__dirname, '../../web/dist');
 
 process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
 process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason));
@@ -19,9 +28,9 @@ function createApp() {
 
   // Health
   app.get('/healthz', (_, res) => res.json({ ok: true }));
-  app.get('/health',  (_, res) => res.json({ ok: true })); // alias
+  app.get('/health',  (_, res) => res.json({ ok: true }));
 
-  // NEW: list hosts that have tripwires for a given operation
+  // --- API ROUTES ---
   app.get('/api/h3/hosts', async (req, res) => {
     try {
       const op_id = String(req.query.op_id || '').trim();
@@ -34,7 +43,6 @@ function createApp() {
     }
   });
 
-  // Existing: Threat Actors (Tripwires) by host
   app.get('/api/h3/threat-actors', async (req, res) => {
     try {
       const op_id = String(req.query.op_id || '').trim();
@@ -48,8 +56,21 @@ function createApp() {
     }
   });
 
-  // catch-all
-  app.use((req, res) => res.status(404).json({ error: 'not found' }));
+  // --- STATIC FRONTEND (optional, only if build exists) ---
+  if (fs.existsSync(STATIC_DIR)) {
+    console.log(`[server] Serving static frontend from: ${STATIC_DIR}`);
+    app.use(express.static(STATIC_DIR));
+
+    // SPA fallback: for any non-API route, serve index.html
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();
+      res.sendFile(path.join(STATIC_DIR, 'index.html'));
+    });
+  } else {
+    console.warn(`[server] WARN: STATIC_DIR not found: ${STATIC_DIR}. Root (/) will 404 until you build the frontend.`);
+    // For API unknowns, keep a JSON 404 (so curl / shows JSON, not a crash)
+    app.use((req, res) => res.status(404).json({ error: 'not found' }));
+  }
 
   return app;
 }
