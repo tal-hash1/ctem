@@ -1,171 +1,117 @@
-import React, { useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import ForceGraph3D from 'react-force-graph-3d'
-import * as THREE from 'three'
-import useSize from '../components/useSize'
-import { getCveDetails } from '../lib/api'
+// web/src/components/AttackPath3D.jsx
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ForceGraph3D from 'react-force-graph-3d';
+import * as THREE from 'three';
+import ThreatActorPopover from './ThreatActorPopover';
+import { getThreatActors } from '../lib/api';
 
-const SEV_COLOR = { CRITICAL:'#ef4444', HIGH:'#f59e0b', MEDIUM:'#60a5fa', LOW:'#34d399', INFO:'#94a3b8' }
+function makeNodeMesh(n) {
+  const group = new THREE.Group();
+  const r = 5;
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(r, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0x4ea1ff, roughness: 0.5, metalness: 0.2 })
+  );
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(r * 1.25, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0x4ea1ff, transparent: true, opacity: 0.15 })
+  );
+  group.add(core);
+  group.add(halo);
+  group.name = `node-${n.id}`;
+  return group;
+}
 
-const AttackPath3D = forwardRef(function AttackPath3D(props, ref){
-  const {
-    nodes=[], links=[],
-    highlightIds=[],
-    crownJewels=[],
-    connectedMap={},
-    reachableSet=new Set(),
-    labelMode='HOST',
-    hostCounts={},
-    firstHostIdByName={},
-    opId,                    // <-- required for CVE API
-    onShowCveDetails         // <-- callback to open modal
-  } = props
+export default function AttackPath3D({ nodes = [], links = [], opId, backgroundColor = '#0b1220' }) {
+  const fgRef = useRef();
+  const containerRef = useRef();
+  const cameraRef = useRef();
+  const [popover, setPopover] = useState(null); // { nodeId, actors, screen:{x,y} }
 
-  const graphRef = useRef()
-  const [wrapRef, { w, h }] = useSize()
-  const data = useMemo(()=>({nodes, links}),[nodes,links])
+  const data = useMemo(() => ({ nodes, links }), [nodes, links]);
 
-  useImperativeHandle(ref, () => ({
-    camera: () => graphRef.current?.camera(),
-    scene: () => graphRef.current?.scene(),
-    zoomToFit: (ms=600, px=40) => graphRef.current?.zoomToFit(ms, px),
-    flyOverview: (ms=900, dist=160) => {
-      const cam = graphRef.current?.camera()
-      if (!cam) return
-      const start = { x: cam.position.x, y: cam.position.y, z: cam.position.z }
-      const end = { x: 0, y: 0, z: dist }
-      const t0 = performance.now()
-      function tick(t){
-        const k = Math.min(1, (t - t0)/ms)
-        cam.position.set(
-          start.x + (end.x - start.x)*k,
-          start.y + (end.y - start.y)*k,
-          start.z + (end.z - start.z)*k
-        )
-        if (k < 1) requestAnimationFrame(tick)
-      }
-      requestAnimationFrame(tick)
-    },
-    flyToNode: (nodeId, ms=900, dist=140) => {
-      const cam = graphRef.current?.camera()
-      const api = graphRef.current
-      if (!cam || !api) return
-      const pos = api.getGraphBbox()
-      const obj = api.getObjectById(nodeId)
-      if (!obj) return
-      const p = new THREE.Vector3()
-      obj.getWorldPosition(p)
-      cam.position.set(p.x + dist, p.y + dist, p.z + dist)
-    },
-    flyToNodeSmooth: (nodeId, ms=900, dist=140, done) => {
-      const cam = graphRef.current?.camera()
-      const api = graphRef.current
-      if (!cam || !api) return done?.()
-      const obj = api.getObjectById(nodeId)
-      if (!obj) return done?.()
-      const p = new THREE.Vector3()
-      obj.getWorldPosition(p)
-      const start = { x: cam.position.x, y: cam.position.y, z: cam.position.z }
-      const end = { x: p.x + dist, y: p.y + dist, z: p.z + dist }
-      const t0 = performance.now()
-      function tick(t){
-        const k = Math.min(1, (t - t0)/ms)
-        cam.position.set(
-          start.x + (end.x - start.x)*k,
-          start.y + (end.y - start.y)*k,
-          start.z + (end.z - start.z)*k
-        )
-        if (k < 1) requestAnimationFrame(tick)
-        else done?.()
-      }
-      requestAnimationFrame(tick)
-    }
-  }))
-
-  useEffect(()=>{ graphRef.current?.zoomToFit(600, 40) },[nodes])
-
-  const labelFor = (n) => {
-    if (labelMode==='HOST_UNIQUE'){
-      if (firstHostIdByName[n.host] !== n.id) return '' // only label first occurrence
-      const count = hostCounts[n.host] || 1
-      return n.host ? (count>1 ? `${n.host} (x${count})` : n.host) : (n.label || n.id)
-    }
-    if (labelMode==='HOST') return n.host || n.label || n.id
-    if (labelMode==='CVE') return n.cves?.[0] || n.label || n.id
-    if (labelMode==='TITLE') return n.label || n.id
-    return ''
+  function worldToScreen(obj3D) {
+    if (!cameraRef.current || !containerRef.current) return null;
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
+    const pos = new THREE.Vector3();
+    obj3D.getWorldPosition(pos);
+    pos.project(cameraRef.current);
+    if (pos.z > 1) return null; // behind camera
+    return { x: (pos.x * 0.5 + 0.5) * width, y: (-pos.y * 0.5 + 0.5) * height };
   }
 
-  const CJ = new Set(crownJewels.map(c=>c.id))
+  // keep the popover anchored as camera moves
+  useEffect(() => {
+    let raf;
+    const tick = () => {
+      if (popover?.nodeId && fgRef.current) {
+        const scene = fgRef.current.graph2Scene?.();
+        const obj = scene?.getObjectByName?.(`node-${popover.nodeId}`);
+        if (obj) {
+          const screen = worldToScreen(obj);
+          if (screen) setPopover(p => (p && p.nodeId === popover.nodeId ? { ...p, screen } : p));
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [popover?.nodeId]);
 
-  async function handleNodeClick(node){
-    // find a CVE on the node; first in list if present
-    let cve = node?.cves?.[0] || node?.cve || node?.cveTag || node?.cve_id || null
-    if (!cve && node?.label) {
-      const m = node.label.match(/\bCVE-\d{4}-\d{4,7}\b/i)
-      if (m) cve = m[0].toUpperCase()
-    }
-    if (!cve || !opId) return
-
+  const handleNodeClick = async (node, evt) => {
+    evt?.stopPropagation?.();
     try {
-      const payload = await getCveDetails(opId, cve.toUpperCase())
-      onShowCveDetails?.(payload)
+      const nodeId = node?.id ?? node;
+      if (!nodeId || !opId) return;
+
+      const scene = fgRef.current?.graph2Scene?.();
+      const obj = scene?.getObjectByName?.(`node-${nodeId}`);
+      const screen = obj ? worldToScreen(obj) : null;
+
+      const { ok, actors } = await getThreatActors(opId, nodeId);
+      setPopover({
+        nodeId,
+        actors: ok && actors?.length ? actors : [{ actor: 'No Threat Actors found' }],
+        screen
+      });
     } catch (e) {
-      console.error('CVE details fetch failed', e)
+      console.error(e);
+      setPopover({ nodeId: node?.id, actors: [{ actor: 'Error loading Threat Actors' }], screen: null });
     }
-  }
+  };
 
   return (
-    <div ref={wrapRef} style={{ width:'100%', height:'100%' }}>
+    <div
+      ref={containerRef}
+      className="relative w-full h-full"
+      style={{ background: backgroundColor }}
+      onClick={() => setPopover(null)}
+    >
       <ForceGraph3D
-        ref={graphRef}
-        width={w}
-        height={h}
+        ref={fgRef}
         graphData={data}
-        onEngineReady={() => {
-          const cam = graphRef.current.camera(); cam.position.set(0, 0, 220)
-          const scene = graphRef.current.scene()
-          scene.fog = new THREE.Fog(0x0f1720, 250, 900)
-          scene.background = new THREE.Color('#0f1720')
-          const amb = new THREE.AmbientLight(0xffffff, 0.55)
-          const dir = new THREE.DirectionalLight(0xffffff, 0.9); dir.position.set(120, 160, 220)
-          scene.add(amb, dir)
-        }}
-        nodeLabel={n => {
-          const base = labelFor(n) || (n.host || n.label)
-          const sev = n.severity ? ` [${n.severity}]` : ''
-          return `${base || n.id}${sev}`
-        }}
+        nodeThreeObject={makeNodeMesh}
+        linkOpacity={0.25}
+        linkColor={() => '#7aa2ff'}
+        showNavInfo={false}
+        backgroundColor={backgroundColor}
         onNodeClick={handleNodeClick}
-        nodeThreeObject={node => {
-          const isCJ = CJ.has(node.id)
-          const baseColor = isCJ ? (connectedMap[node.id] ? '#facc15' : '#fde68a') : (SEV_COLOR[node.severity] || '#a1a1aa')
-          const faded = !reachableSet.has(node.id)
-          const color = faded ? '#3a4551' : baseColor
-          const geo = new THREE.SphereGeometry(isCJ ? 5.2 : 4, 18, 18)
-          const mat = new THREE.MeshPhongMaterial({
-            color,
-            emissive: (isCJ ? 0x996515 : (highlightIds?.includes(node.id) ? 0xffffff : 0x000000)),
-            emissiveIntensity: isCJ ? 0.35 : (highlightIds?.includes(node.id) ? 0.6 : 0.14),
-            shininess: isCJ ? 80 : 60,
-            transparent: true,
-            opacity: faded ? 0.55 : 0.96
-          })
-          const mesh = new THREE.Mesh(geo, mat)
-          // halo
-          const tex = new THREE.TextureLoader().load('data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="28" fill="white"/></svg>'))
-          const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: faded ? 0.08 : 0.18, blending: THREE.AdditiveBlending })
-          const halo = new THREE.Sprite(spriteMat); halo.scale.set(isCJ ? 28 : 22, isCJ ? 28 : 22, 1)
-          mesh.add(halo)
-          return mesh
+        onEngineStop={() => {
+          if (fgRef.current?.camera) {
+            cameraRef.current = fgRef.current.camera();
+          } else if (fgRef.current?.renderer) {
+            cameraRef.current = fgRef.current.renderer().camera;
+          }
         }}
-        linkDirectionalParticles={0}
-        linkResolution={4}
-        linkOpacity={l => l.cut ? 0.95 : (reachableSet.has(l.source?.id || l.source) && reachableSet.has(l.target?.id || l.target) ? 0.6 : 0.15)}
-        linkColor={l => l.cut ? 'red' : '#9aa4b2'}
-        backgroundColor="#0f1720"
       />
+      {popover?.actors && (
+        <ThreatActorPopover
+          screenPos={popover.screen}
+          actors={popover.actors}
+          onClose={() => setPopover(null)}
+        />
+      )}
     </div>
-  )
-})
-
-export default AttackPath3D
+  );
+}
