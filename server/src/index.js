@@ -14,7 +14,7 @@ function createApp() {
 
   app.get('/healthz', (_, res) => res.json({ ok: true }));
 
-  // === New route: Tripwire Threat Actors by host ===
+  // Threat Actors (Tripwires) by host
   app.get('/api/h3/threat-actors', async (req, res) => {
     try {
       const op_id = String(req.query.op_id || '').trim();
