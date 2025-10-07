@@ -345,7 +345,7 @@ export default function App(){
           {/* Auto-zoom toggle (OFF by default) */}
           <label className="btn" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input type="checkbox" checked={autoZoom} onChange={() => setAutoZoom(!autoZoom)} />
-            Auto-zoom after simulate
+            Auto-zoom after evaluation
           </label>
 
           {/* Tour + Movie */}
@@ -406,7 +406,7 @@ export default function App(){
       <div className="card">
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div><b>Vulnerabilities (CVE)</b></div>
-          <div className="muted">Select CVEs to simulate</div>
+          <div className="muted">Select CVEs to evaluate</div>
         </div>
 
         {/* CVE chips (AUTO-RUN on click) */}
