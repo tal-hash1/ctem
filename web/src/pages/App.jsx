@@ -452,7 +452,7 @@ export default function App(){
         {/* Simulation result + Reset + Explain Calculation */}
         <div className="row" style={{ gap: 12, marginTop: 8, alignItems:'center' }}>
           <div className="card" style={{ flex: 1 }} title={percentTip}>
-            <div className="muted">Simulation</div>
+            <div className="muted">Evaluation</div>
             <div style={{ fontSize: '1.8rem', marginTop: 4 }}>{sim.percent_reduction}%</div>
             <div className="muted" style={{ marginTop: 6 }}>
               Paths disrupted: {sim.paths_disrupted} / {sim.paths_total}
