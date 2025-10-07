@@ -4,11 +4,6 @@ import fetch from 'node-fetch';
 const H3_API_URL = process.env.H3_API_URL || 'https://docs.horizon3.ai/api/graphql';
 const H3_API_TOKEN = process.env.H3_API_TOKEN || '';
 
-if (!H3_API_TOKEN) {
-  // You can still start the server, but calls will fail until you set this.
-  console.warn('[h3] Warning: H3_API_TOKEN is not set. Set it to a valid Bearer token.');
-}
-
 async function gql(query, variables) {
   const r = await fetch(H3_API_URL, {
     method: 'POST',
@@ -18,14 +13,9 @@ async function gql(query, variables) {
     },
     body: JSON.stringify({ query, variables })
   });
-  if (!r.ok) {
-    const text = await r.text().catch(() => '');
-    throw new Error(`GraphQL HTTP ${r.status}: ${text}`);
-  }
+  if (!r.ok) throw new Error(`GraphQL HTTP ${r.status}: ${await r.text().catch(()=> '')}`);
   const data = await r.json();
-  if (data.errors) {
-    throw new Error('GraphQL error: ' + JSON.stringify(data.errors));
-  }
+  if (data.errors) throw new Error('GraphQL error: ' + JSON.stringify(data.errors));
   return data.data;
 }
 
@@ -48,18 +38,13 @@ const Q_TRIPWIRES_PAGE = `
   }
 `;
 
-/**
- * Returns a compact list of { actor, created_at, severity, status, technique, rule_name, description }
- */
 export async function getTripwiresByHost({ op_id, host_id }) {
-  const variables = {
+  const data = await gql(Q_TRIPWIRES_PAGE, {
     input: { op_id, host_id },
     page_input: { page: 1, per_page: 50 }
-  };
-  const data = await gql(Q_TRIPWIRES_PAGE, variables);
+  });
   const items = data?.tripwires_page?.items ?? [];
 
-  // Reduce to the latest tripwire per actor
   const actorMap = new Map();
   for (const t of items) {
     const actor = t.threat_actor || 'Unknown Actor';
