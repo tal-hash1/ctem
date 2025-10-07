@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import ThreatActorPopover from './ThreatActorPopover';
 import { getThreatActors } from '../lib/api';
 
+const DEFAULT_OP_ID = '8fccfaf0-c8cd-4688-a8cb-b1c209f1166d';
+
 function makeNodeMesh(n) {
   const group = new THREE.Group();
   const r = 5;
@@ -22,7 +24,7 @@ function makeNodeMesh(n) {
   return group;
 }
 
-export default function AttackPath3D({ nodes = [], links = [], opId, backgroundColor = '#0b1220' }) {
+export default function AttackPath3D({ nodes = [], links = [], opId = DEFAULT_OP_ID, backgroundColor = '#0b1220' }) {
   const fgRef = useRef();
   const containerRef = useRef();
   const cameraRef = useRef();
