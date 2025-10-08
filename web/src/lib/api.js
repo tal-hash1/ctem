@@ -1,4 +1,3 @@
-// web/src/lib/api.js
 const API_BASE = (import.meta.env.VITE_API_BASE ?? '').trim();
 const BASE = API_BASE || '';
 
@@ -37,16 +36,6 @@ export async function getCveDetails(op_id, cve) {
   const r = await fetch(url.toString().replace(window.location.origin, ''));
   if (!r.ok) { const text = await r.text().catch(()=> ''); throw new Error('cve-details failed: ' + text); }
   return r.json();
-}
-
-// NEW: Threat Actors (Tripwires) by host
-export async function getThreatActors(op_id, host_id) {
-  const url = new URL((BASE || '') + '/api/h3/threat-actors', window.location.origin);
-  url.searchParams.set('op_id', op_id);
-  url.searchParams.set('host_id', host_id);
-  const r = await fetch(url.toString().replace(window.location.origin, ''));
-  if (!r.ok) { const text = await r.text().catch(()=> ''); throw new Error('threat-actors failed: ' + text); }
-  return r.json(); // { ok, actors: [...] }
 }
 
 export const API_DEBUG = { BASE, API_BASE };
