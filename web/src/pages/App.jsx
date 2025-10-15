@@ -531,23 +531,35 @@ export default function App(){
     </div>
 
     {/* Fixed bottom-center footer */}
-    <div
-      className="card"
-      style={{
-        position: 'fixed',
-        left: '50%',
-        bottom: 12,
-        transform: 'translateX(-50%)',
-        textAlign: 'center',
-        opacity: 0.9,
-        maxWidth: 900,
-        width: 'max-content',
-        zIndex: 1000
-      }}
-    >
-      CTEM — Continuous Threat Exposure Management • Created By Customer Success Team Horizon3AI
-                               {"\n"}Inspired by Amara Okoli
-    </div>
+    // Put this near the component (rounded 32×32 PNG as a data URI).
+const ICON_DATA_URI = "data:image/png;base64,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/";
+
+<div
+  className="card"
+  style={{
+    position: 'fixed',
+    left: '50%',
+    bottom: 12,
+    transform: 'translateX(-50%)',
+    textAlign: 'center',
+    opacity: 0.9,
+    maxWidth: 900,
+    width: 'max-content',
+    zIndex: 1000
+  }}
+>
+  <div>
+    CTEM — Continuous Threat Exposure Management • Created By Customer Success Team Horizon3AI
+  </div>
+
+  {/* New line with icon + text */}
+  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center', marginTop: 4 }}>
+    <img src={ICON_DATA_URI} width={16} height={16} alt="" />
+    <span>Inspired by Amara Okoli</span>
+  </div>
+</div>
+
+
 
     {/* Modals */}
     <CVEAnimationModal
