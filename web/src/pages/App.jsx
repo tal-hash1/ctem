@@ -546,6 +546,7 @@ export default function App(){
       }}
     >
       CTEM — Continuous Threat Exposure Management • Created By Customer Success Team Horizon3AI
+                                Inspired by Empower by Amara Okoli
     </div>
 
     {/* Modals */}
